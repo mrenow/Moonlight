@@ -2,9 +2,8 @@ __author__ = 'My Computer'
 import pyaudio
 import _thread
 import wave
-import struct
 class AudioController:
-    CHUNK = 8192
+    CHUNK = 1024
     FORMAT = pyaudio.paInt16
     CHANNELS = 2
     lastchunk = []
