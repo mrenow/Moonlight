@@ -2,10 +2,13 @@ __author__ = 'My Computer'
 import pyaudio
 import _thread
 import wave
+import struct
 class AudioController:
-    CHUNK = 1024
+    CHUNK = 8192
     FORMAT = pyaudio.paInt16
     CHANNELS = 2
+    lastchunk = []
+    recording = False
 
     p = pyaudio.PyAudio()
 
@@ -29,21 +32,24 @@ class AudioController:
         print(s.mic)
         s.CHANNELS = s.mic["maxInputChannels"]
 
-    #recording will be excected in a separate thread
+    #recording will be excecuted in a separate thread
     def startRecord(s):
 
         s.sound_input = []
         stream = s.p.open(format = s.FORMAT, channels = s.CHANNELS, rate = int(s.RATE), input = True, frames_per_buffer = s.CHUNK)
         s.recording = True
+
+        #lock to prevent concurrency errors with recording thread
         s.record_lock = True
         _thread.start_new_thread(s.record,(stream,))
 
     def stopRecord(s):
         s.recording = False
         while(s.record_lock):
-            pass
+           pass
     def getSound(s):
         return s.sound_input
+
     def saveSound(s,path):
         wf = wave.open(path,'wb')
         wf.setnchannels(s.CHANNELS)
@@ -55,15 +61,10 @@ class AudioController:
     def record(s,stream):
 
         while(s.recording):
-            s.sound_input.append(stream.read(s.CHUNK))
+            s.lastchunk = stream.read(s.CHUNK)
+            s.sound_input.append(s.lastchunk)
+
         s.record_lock = False
-
-
-
-
-
-
-
 
 
 
