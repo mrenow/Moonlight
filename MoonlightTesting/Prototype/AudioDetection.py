@@ -19,39 +19,48 @@ current_note = ""
     return mid
 '''
 
+def lino():
+    """Returns the current line number in our program."""
+    print(inspect.currentframe().f_back.f_lineno)
+
 def minSearch(data, lower, upper):
     if (type(data) == np.ndarray):
         data1 = lambda i: data[i]
     else:
         data1 = data
 
-    mid = (upper + lower) // 2
-    if (mid == lower):
-        if (data1(lower) > data1(upper)):
+    mid = (upper + lower)//2
+    step = (upper - lower)//2
+    if(upper == lower):
+        if (data1(mid) < data1(mid + 1) and data1(mid) < data1(mid - 1)):
             return upper
         else:
-            return lower
+            return -1
     if (data1(mid) > data1(mid + 1)):
-        return minSearch(data1, mid, upper)
-    if (data1(mid) < data1(mid - 1)):
-        return minSearch(data1, lower, mid)
+        return minSearch(data1, upper - step, upper)
+    if (data1(mid) > data1(mid - 1)):
+        return minSearch(data1, lower, lower + step)
     return mid
 
 
 def maxSearch(data, lower, upper):
+    if (type(data) == np.ndarray):
+        data1 = lambda i: data[i]
+    else:
+        data1 = data
+
     mid = (upper + lower) // 2
-    if (mid == lower):
-        if (data[lower < data[upper]]):
+    step = (upper - lower-1) // 2
+    if (upper == lower):
+        if (data1(mid) > data1(mid + 1) and data1(mid) > data1(mid - 1)):
             return upper
         else:
-            return lower
-    if (data[mid] < data[mid + 1]):
-        return minSearch(data, mid, upper)
-    if (data[mid] > data[mid - 1]):
-        return minSearch(data, lower, mid)
+            return -1
+    if (data1(mid) < data1(mid + 1)):
+        return maxSearch(data1, upper - step, upper)
+    if (data1(mid) < data1(mid - 1)):
+        return maxSearch(data1, lower, lower + step)
     return mid
-
-
 def peakDetect(data, scale=0.1 ** 4):
     threshold = 10
     begin = -1
@@ -87,8 +96,8 @@ def troughDetect(data, scale=0.1 ** 4):
     extreme = -1
     troughs = []
     errors = np.ndarray((len(data) // 2 - 2,))
-    getErrors = lambda i: 10000 + sum(((data[:i + 2] - data[i + 2:2 * (i + 2)]) * scale) ** 2) // (i + 1)
-    for i in range(len(data) // 2 - 3):
+    getErrors = lambda i: 10000 + sum(((data[:i + 2] - data[i + 2:2 * (i + 2)]) * scale) ** 2) // (i + 2)
+    for i in range(len(data) // 2 - 2):
         # Sum shifted and original waveforms
         errors[i] = getErrors(i)
         extreme = max(extreme, errors[i])
@@ -98,17 +107,21 @@ def troughDetect(data, scale=0.1 ** 4):
             # if end of region reached
         if (begin != -1 and errors[i] > threshold * extreme):
             end = i
+            #min checking window
+            window = end-begin
             # location of trough
-            trough = minSearch(errors, begin, end)
-            troughs.append(trough + 2)
-            # location shifting
-            while troughs[-1] <= len(data):
-                interval = troughs[-1] // len(troughs)
-                begin += interval
-                end += interval
+            while end<len(data)//2-2:
                 # location of trough
                 trough = minSearch(getErrors, begin, end)
+                #no trough detected
+                if(trough == -1):
+                    print("session killed")
+                    return []
                 troughs.append(trough + 2)
+                interval = troughs[-1] // len(troughs)
+                begin = interval + troughs[-1]-window//2
+                end = interval + troughs[-1]+window//2
+
             break
     return troughs
 
