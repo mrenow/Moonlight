@@ -46,6 +46,8 @@ class Window(QtWidgets.QMainWindow):
 
 
     freq_graph = np.zeros(1500)
+    freq_graph1 = np.zeros(1500)
+
     def __init__(s):
         super(Window,s).__init__(None)
 
@@ -81,18 +83,24 @@ class Window(QtWidgets.QMainWindow):
         s.drop_indevice_action()
 
         s.canvas_time = Monitor(mode = 1)
-        s.canvas_time.setGeometry(0,0,1500,600)
+        s.canvas_time.setGeometry(0,0,1500,750)
 
         s.canvas_freq = Monitor(mode = 0)
-        s.canvas_freq.setGeometry(0,0,1500,600)
+        s.canvas_freq.setGeometry(0,0,1500,750)
 
         s.canvas_error = Monitor(mode = 0)
-        s.canvas_error.setGeometry(0,0,1500,600)
+        s.canvas_error.setGeometry(0,0,1500,750)
+
+        s.canvas_pitch = Monitor(mode = 0)
+        s.canvas_pitch.setGeometry(0,0,1500,750)
+
+
 
         s.tabs.addTab(s.main,"main")
         s.tabs.addTab(s.canvas_time,"time signal")
         s.tabs.addTab(s.canvas_freq,"frequency signal")
         s.tabs.addTab(s.canvas_error,"time error")
+        s.tabs.addTab(s.canvas_pitch,"pitch")
 
         s.eventloop = QtCore.QTimer(s)
         s.eventloop.timeout.connect(s.eventloop_action)
@@ -132,6 +140,7 @@ class Window(QtWidgets.QMainWindow):
             s.canvas_freq.scalez = 6*0.1**10
             s.canvas_time.scalez = 0.1**7
             s.canvas_error.scalez = 0.3
+            s.canvas_pitch.scalez = 3
             if(s.audio.lastchunk!=[]):
                 data = np.fromstring(s.audio.lastchunk,'Int32')
                # data* np.vectorize(lambda:e^) #window function
@@ -154,13 +163,22 @@ class Window(QtWidgets.QMainWindow):
                         s.freq_graph[0] = pitch
                     else:
                         s.freq_graph[0] = s.freq_graph[1]
+                    s.canvas_error.setData(s.freq_graph)
+
+                if(s.tabs.currentWidget() == s.canvas_pitch):
+                    s.freq_graph1 = np.roll(s.freq_graph1,1)
+                    peak = AudioDetection.dominantFreq(np.fft.rfft(data) )
+                    if(peak != -1):
+                        s.freq_graph1[0] = peak
+                    else:
+                        s.freq_graph1[0] = s.freq_graph1[1]
+                    s.canvas_pitch.setData(s.freq_graph1)
 
 
 
 
 
                     #print(s.freq_graph[:20])
-                    s.canvas_error.setData(s.freq_graph)
 
 
 
