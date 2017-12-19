@@ -3,7 +3,7 @@ import pyaudio
 import _thread
 import wave
 class AudioController:
-    CHUNK = 1024
+    CHUNK = 2000
     FORMAT = pyaudio.paInt16
     CHANNELS = 2
     lastchunk = []

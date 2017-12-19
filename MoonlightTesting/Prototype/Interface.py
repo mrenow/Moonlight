@@ -12,23 +12,44 @@ import struct
 import math
 import inspect
 import numpy as np
+import time
 
 from MoonlightTesting.Prototype.recording import AudioController
+from MoonlightTesting.Prototype import AudioDetection
 
+t = 0
 
+def timerStart():
+    global t
 
+    t = time.time()
+
+def timerStop():
+    global t
+    print(time.time()-t)
 
 
 def lino():
     """Returns the current line number in our program."""
-    return inspect.currentframe().f_back.f_lineno
+    print(inspect.currentframe().f_back.f_lineno)
+
+def catch_exceptions(t, val, tb):
+    print(t)
+    old_hook(t, val, tb)
+    exit()
+
+old_hook = sys.excepthook
+sys.excepthook = catch_exceptions
 
 class Window(QtWidgets.QMainWindow):
     #Assembles two buttons and a dropdown selector for input device selection.
+
+
+    freq_graph = np.zeros(1500)
     def __init__(s):
         super(Window,s).__init__(None)
 
-        s.setGeometry(0,50,1500,800)
+        s.setGeometry(750,50,1500,800)
         s.setWindowTitle("TEST")
         s.audio = AudioController()
         print("25")
@@ -65,13 +86,17 @@ class Window(QtWidgets.QMainWindow):
         s.canvas_freq = Monitor(mode = 0)
         s.canvas_freq.setGeometry(0,0,1500,600)
 
+        s.canvas_error = Monitor(mode = 0)
+        s.canvas_error.setGeometry(0,0,1500,600)
+
         s.tabs.addTab(s.main,"main")
         s.tabs.addTab(s.canvas_time,"time signal")
         s.tabs.addTab(s.canvas_freq,"frequency signal")
+        s.tabs.addTab(s.canvas_error,"time error")
 
         s.eventloop = QtCore.QTimer(s)
         s.eventloop.timeout.connect(s.eventloop_action)
-        s.eventloop.start(2)
+        s.eventloop.start(10)
         #showing the window
 
         s.show()
@@ -104,21 +129,34 @@ class Window(QtWidgets.QMainWindow):
     def eventloop_action(s):
         if(s.audio.recording):
             s.audio.getSound()
-            s.canvas_freq.scalez = 3*0.1**10
+            s.canvas_freq.scalez = 6*0.1**10
             s.canvas_time.scalez = 0.1**7
+            s.canvas_error.scalez = 0.1**7
             if(s.audio.lastchunk!=[]):
-                data = list(np.fromstring(s.audio.lastchunk,'Int32'))
+                data = np.fromstring(s.audio.lastchunk,'Int32')
+               # data* np.vectorize(lambda:e^) #window function
+                #data = np.random.randint(-2**31,2**31,size = 1024,dtype = np.int32)
 
-                s.canvas_freq.setData(list(np.fft.rfft(data)))
-                s.canvas_time.setData(data)
-
-
+                if(s.tabs.currentWidget()==s.canvas_freq):
+                    print("freq")
+                    timerStart()
+                    s.canvas_freq.setData(np.fft.rfft(data)[0:500])
+                    timerStop()
+                if(s.tabs.currentWidget()==s.canvas_time):
+                    print("data")
+                    timerStart()
+                    s.canvas_time.setData(data)
+                    timerStop()
+                if(s.tabs.currentWidget()==s.canvas_error):
+                    np.roll(s.freq_graph,1)
+                    s.freq_graph[0] = AudioDetection.autocorrelate(data)
+                    s.canvas_error.setData(s.freq_graph)
 
 
 
 #Graphical element which takes in a 2D array of values and outputs a colour map.
 class Monitor(QtWidgets.QWidget):
-    data = [1,3,4,5]
+    data = np.ndarray([])
     data_height = 0
     data_width = 0
     scalez = 1
@@ -135,23 +173,25 @@ class Monitor(QtWidgets.QWidget):
         s.resetData()
     def resetData(s):
        # s.data = [[0 for _ in range(s.width())] for _ in range(s.height())]
-        s.data = [0 for _ in range(s.width())]
+        s.data = np.zeros(s.width())
         s.update()
 
     def setData(s,newdata):
         if(type(newdata) == np.ndarray):
 
-            s.data_height = len(newdata)
-            s.data_width = len(newdata[0])
-
-            np.reshape(newdata,s.data_height*s.data_width)
-            np.require(newdata,np.uint8,'C')
+            if(len(newdata.shape) == 2):
+                s.data_height,s.data_width = newdata.shape
+            else:
+                s.data_height = newdata.shape[0]
+                s.data_width =1
+            newdata = np.reshape(newdata,s.data_height*s.data_width)
+            #newdata = np.require(newdata,np.uint8,'C')
             s.data = newdata
 
 
 
         # for teo dimensional data
-        elif(type(newdata) == list or type(newdata) == tuple):
+        '''elif(type(newdata) == list or type(newdata) == tuple):
             if(type(newdata[0]) == list or type(newdata[0]) == tuple):
                 #check if data is rectangular. return if otherwise.
                 for row in newdata:
@@ -165,7 +205,7 @@ class Monitor(QtWidgets.QWidget):
             else:
                 #1d list
                 s.data = newdata
-
+        '''
 
         s.update()
 
@@ -180,44 +220,40 @@ class Monitor(QtWidgets.QWidget):
         #theres gotta be a faster way to do this
 
         #img = QtGui.QImage(s.data,s.data_width,s.data_height)
+        assert (type(s.data) == np.ndarray)
+
+        #plotting 1d array
+        if(len(s.data.shape) == 1):
+            xlen = s.data.shape[0]
+            #scale data in x direction to fit screen
+            div = s.width()/xlen
+            p.setPen(QtCore.Qt.blue)
+            #draws lines between all data points
+            if(s.mode == s.MODES["frequency"]):
+                old = np.absolute(s.data[0])*s.scalez
+                for i in range(xlen-1):
+                    new = np.absolute(s.data[i])*s.scalez
+                    p.drawLine(QtCore.QPoint(int(i*div),int(s.height()-old)),QtCore.QPoint(int((i+1)*div),int(s.height()-new)))
+                    old = new
+                for i in range(1,40):
+                    p.drawLine(QtCore.QPoint(i*40,s.height()) , QtCore.QPoint(i*40,s.height()-100))
+            elif(s.mode == s.MODES["time"]):
+                old = (s.data[0]*s.scalez)
+                print(s.data[0])
+                for i in range(0,xlen-1):
+                    new = (s.data[i]*s.scalez)
+                    p.drawLine(QtCore.QPoint(int(i*div),old+s.height()/2),QtCore.QPoint(int((i+1)*div),new+s.height()/2))
+                    old = new
 
         #Plotting 2d array
-        if(type(s.data) == list):
-            if(type(s.data[0]) == list):
-                ylen = len(s.data)
-                xlen = len(s.data[0])
-                #draws all points on the entire canvas. VERY FREAKING SLOW
-                for y in range(s.height()):
-                    for x in range(s.width()):
-                        p.setPen(QtGui.QColor(0,0,s.scalez*s.data[int(y*ylen/s.height())][int(x*xlen/s.width())]))
-                        p.drawPoint(x,y)
-
-
-            #plotting 1d array
-            else:
-
-                xlen = len(s.data)
-                #scale data in x direction to fit screen
-                div = s.width()/xlen
-                p.setPen(QtCore.Qt.blue)
-                print(s.mode)
-                #draws lines between all data points
-
-                if(s.mode == s.MODES["frequency"]):
-                    old = (np.absolute(s.data[0])*s.scalez)**2
-
-                    for i in range(0,xlen-1):
-                        new = (np.absolute(s.data[i]) *s.scalez)**2
-                        p.drawLine(QtCore.QPoint(int(i*div),s.height()-old),QtCore.QPoint(int((i+1)*div),s.height()-new))
-                        old = new
-                elif(s.mode == s.MODES["time"]):
-                    print("a")
-                    old = (s.data[0]*s.scalez)
-                    print(s.data[0])
-                    for i in range(0,xlen-1):
-                        new = (s.data[i]*s.scalez)
-                        p.drawLine(QtCore.QPoint(int(i*div),old+s.height()/2),QtCore.QPoint(int((i+1)*div),new+s.height()/2))
-                        old = new
+        if(len(s.data.shape)==2):
+            ylen = len(s.data)
+            xlen = len(s.data[0])
+            #draws all points on the entire canvas. VERY FREAKING SLOW
+            for y in range(s.height()):
+                for x in range(s.width()):
+                    p.setPen(QtGui.QColor(0,0,s.scalez*s.data[int(y*ylen/s.height())][int(x*xlen/s.width())]))
+                    p.drawPoint(x,y)
 
 
 if( __name__ == "__main__"):
