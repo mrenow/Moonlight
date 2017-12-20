@@ -70,24 +70,33 @@ def maxSearch(data, lower, upper):
 #input is a frequency graph
 def peakDetect(data):
     data = np.absolute(data)
+    m = max(np.absolute(data))
 
-    threshold = 100
+    threshold = 10
     begin = -1
+    minimum = 10**9
+    minimum0 = 100
     minimum1 = 0
     minimum2 = 0
     divisions = 20
     division = len(data)//divisions
-    peaks = {}
+    peaks = []
+    scale= 6*0.1**10
 
     for i in range(len(data)):
+        if data[i] < minimum*threshold:
+            minimum = (data[i]+10**9)*0.04 + minimum*0.96
+        '''
         divpos = i//division
         if i%division == 0:
             minimum1 = min(data[division*divpos:division*divpos+division])
         if i%division == division//2:
             minimum2 = min(data[division*divpos+division//2:division*divpos+division//2+division])
         minimum = max(minimum1,minimum2)+1000000
-        print("minimum",minimum)
-        print("max",max(data))
+        '''
+        if(data[i] == m):
+            print(minimum*threshold*scale,m*scale,i,begin)
+
         # get bounds of above threshold
         if begin == -1 and data[i] > threshold * minimum:
             begin = i
@@ -95,10 +104,28 @@ def peakDetect(data):
         if begin != -1 and data[i] < threshold * minimum:
             end = i
             # location of trough
+
+            print("bounds",begin,end,minimum*threshold*scale,data[i]*scale)
             peak = maxSearch(data, begin, end)
-            peaks[data[peak]] = peak
+            peaks.append(peak)
             begin = -1
+    print(peaks)
     return peaks
+
+
+'''
+18:400
+23:500
+27
+32
+36
+41
+91:2000
+113:2500
+211:4651
+321:7085
+
+'''
 
 
 def troughDetect(data, scale=0.1 ** 4):
@@ -183,7 +210,7 @@ def dominantFreq(data):
     peaks = peakDetect(data)
     if peaks == {}:
         return -1
-    return peaks[max(peaks.keys())]
+    return peaks
 
 
 notes = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]

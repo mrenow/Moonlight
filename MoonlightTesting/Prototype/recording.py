@@ -8,6 +8,7 @@ class AudioController:
     CHANNELS = 2
     lastchunk = []
     recording = False
+    INDEX = 2
 
     p = pyaudio.PyAudio()
 
@@ -30,12 +31,14 @@ class AudioController:
         s.RATE = s.mic["defaultSampleRate"]
         print(s.mic)
         s.CHANNELS = s.mic["maxInputChannels"]
+        s.INDEX = s.mic["index"]
+        pass
 
     #recording will be excecuted in a separate thread
     def startRecord(s):
 
         s.sound_input = []
-        stream = s.p.open(format = s.FORMAT, channels = s.CHANNELS, rate = int(s.RATE), input = True, frames_per_buffer = s.CHUNK)
+        stream = s.p.open(input_device_index = s.INDEX,format = s.FORMAT, channels = s.CHANNELS, rate = int(s.RATE), input = True, frames_per_buffer = s.CHUNK)
         s.recording = True
 
         #lock to prevent concurrency errors with recording thread
