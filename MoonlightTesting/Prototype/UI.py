@@ -46,7 +46,7 @@ class Window(QtWidgets.QMainWindow):
 
 
     freq_graph = np.zeros(1500)
-    freq_graph1 = np.zeros(1500)
+    freq_graph1 = [[] for _ in range(1500)]
 
     def __init__(s):
         super(Window,s).__init__(None)
@@ -54,7 +54,6 @@ class Window(QtWidgets.QMainWindow):
         s.setGeometry(750,50,1500,800)
         s.setWindowTitle("TEST")
         s.audio = AudioController()
-        print("25")
 
         #tab1
         s.tabs = QtWidgets.QTabWidget(s)
@@ -63,18 +62,17 @@ class Window(QtWidgets.QMainWindow):
         #buttons
         s.btn_record = QtWidgets.QPushButton("Record",s.main)
         s.btn_record.setGeometry(10,700,75,22)
-        print("29")
         s.btn_stop = QtWidgets.QPushButton("stop",s.main)
         s.btn_stop.setGeometry(90,700,75,22)
         s.btn_stop.setEnabled(False)
-        print("33")
         #dropdown selector
         s.drop_indevice = QtWidgets.QComboBox(s.main)
         s.drop_indevice.setGeometry(1300,700,69,22)
-        print("37")
         #adding all input devices to the dropdown selector
         for device in s.audio.input_devices.values():
             s.drop_indevice.addItem(device["name"])
+
+        lino()
 
         #adding event handlers to events
         s.btn_record.clicked.connect(s.btn_record_action)
@@ -88,23 +86,29 @@ class Window(QtWidgets.QMainWindow):
         s.canvas_freq = Monitor(mode = 0)
         s.canvas_freq.setGeometry(0,0,1500,750)
 
+        lino()
+
         s.canvas_error = Monitor(mode = 0)
         s.canvas_error.setGeometry(0,0,1500,750)
 
-        s.canvas_pitch = Monitor(mode = 0)
+        s.canvas_pitch = Monitor(mode = 2)
         s.canvas_pitch.setGeometry(0,0,1500,750)
 
 
-
+        lino()
         s.tabs.addTab(s.main,"main")
         s.tabs.addTab(s.canvas_time,"time signal")
         s.tabs.addTab(s.canvas_freq,"frequency signal")
         s.tabs.addTab(s.canvas_error,"time error")
-        s.tabs.addTab(s.canvas_pitch,"pitch")
 
+        lino()
+
+        #s.tabs.addTab(s.canvas_pitch,"pitch")
+        s.canvas_pitch.show()
+        lino()
         s.eventloop = QtCore.QTimer(s)
         s.eventloop.timeout.connect(s.eventloop_action)
-        s.eventloop.start(10)
+        s.eventloop.start(5)
         #showing the window
 
         s.show()
@@ -165,14 +169,15 @@ class Window(QtWidgets.QMainWindow):
                         s.freq_graph[0] = s.freq_graph[1]
                     s.canvas_error.setData(s.freq_graph)
 
-                if(s.tabs.currentWidget() == s.canvas_pitch):
-                    s.freq_graph1 = np.roll(s.freq_graph1,1)
-                    peak = AudioDetection.dominantFreq(np.fft.rfft(data) )
-                    if(peak != -1):
-                        s.freq_graph1[0] = peak
-                    else:
-                        s.freq_graph1[0] = s.freq_graph1[1]
-                    s.canvas_pitch.setData(s.freq_graph1)
+                #if(s.tabs.currentWidget() == s.canvas_pitch):
+                s.freq_graph1 =[s.freq_graph1[-1]]+s.freq_graph1[:-1]
+                peak = AudioDetection.dominantFreq(np.fft.rfft(data))
+                lino()
+                if(peak != -1):
+                    s.freq_graph1[0] = peak
+                else:
+                    s.freq_graph1[0] = s.freq_graph1[1]
+                s.canvas_pitch.setData(s.freq_graph1)
 
 
 
@@ -184,7 +189,7 @@ class Window(QtWidgets.QMainWindow):
 
 #Graphical element which takes in a 2D array of values and outputs a colour map.
 class Monitor(QtWidgets.QWidget):
-    data = np.ndarray([])
+    data = np.array([])
     data_height = 0
     data_width = 0
     scalez = 1
@@ -201,8 +206,13 @@ class Monitor(QtWidgets.QWidget):
         s.resetData()
     def resetData(s):
        # s.data = [[0 for _ in range(s.width())] for _ in range(s.height())]
-        s.data = np.zeros(s.width())
+
+        if(s.mode in (0,1)):
+            s.data = np.zeros(s.width())
+        elif(s.mode == 2):
+            s.data = [[] for _ in range(s.width())]
         s.update()
+
 
     def setData(s,newdata):
         if(type(newdata) == np.ndarray):
@@ -234,6 +244,8 @@ class Monitor(QtWidgets.QWidget):
                 #1d list
                 s.data = newdata
         '''
+        if(s.mode == 2):
+            s.data = newdata
 
         s.update()
 
@@ -244,44 +256,50 @@ class Monitor(QtWidgets.QWidget):
         s.drawData(p)
         p.end()
     def drawData(s,p):
-
+        if(len(s.data) == 0): return
         #theres gotta be a faster way to do this
 
-        #img = QtGui.QImage(s.data,s.data_width,s.data_height)
-        assert (type(s.data) == np.ndarray)
 
         #plotting 1d array
-        if(len(s.data.shape) == 1):
+        #draws lines between all data points
+        if(s.mode == 0):
+            assert(type(s.data) == np.ndarray and type(s.data[0] in (int,float)))
             xlen = s.data.shape[0]
-            #scale data in x direction to fit screen
-            div = s.width()/xlen
+            # scale data in x direction to fit screen
+            div = s.width() / xlen
             p.setPen(QtCore.Qt.blue)
-            #draws lines between all data points
-            if(s.mode == s.MODES["frequency"]):
-                old = np.absolute(s.data[0])*s.scalez
-                for i in range(xlen-1):
-                    new = np.absolute(s.data[i])*s.scalez
-                    p.drawLine(QtCore.QPoint(int(i*div),int(s.height()-old)),QtCore.QPoint(int((i+1)*div),int(s.height()-new)))
-                    old = new
-                for i in range(1,40):
-                    p.drawLine(QtCore.QPoint(i*40,s.height()) , QtCore.QPoint(i*40,s.height()-100))
-            elif(s.mode == s.MODES["time"]):
-                old = (s.data[0]*s.scalez)
-                print(s.data[0])
-                for i in range(0,xlen-1):
-                    new = (s.data[i]*s.scalez)
-                    p.drawLine(QtCore.QPoint(int(i*div),old+s.height()/2),QtCore.QPoint(int((i+1)*div),new+s.height()/2))
-                    old = new
+            old = np.absolute(s.data[0])*s.scalez
+            for i in range(xlen-1):
+                new = np.absolute(s.data[i])*s.scalez
+                p.drawLine(QtCore.QPoint(int(i*div),int(s.height()-old)),QtCore.QPoint(int((i+1)*div),int(s.height()-new)))
+                old = new
+            for i in range(1,40):
+                p.drawLine(QtCore.QPoint(i*40,s.height()) , QtCore.QPoint(i*40,s.height()-100))
+        elif(s.mode == 1):
+            assert(type(s.data) == np.ndarray and type(s.data[0] in (int,float)))
+            xlen = s.data.shape[0]
+            # scale data in x direction to fit screen
+            div = s.width() / xlen
+            p.setPen(QtCore.Qt.blue)
 
-        #Plotting 2d array
-        if(len(s.data.shape)==2):
-            ylen = len(s.data)
-            xlen = len(s.data[0])
-            #draws all points on the entire canvas. VERY FREAKING SLOW
-            for y in range(s.height()):
-                for x in range(s.width()):
-                    p.setPen(QtGui.QColor(0,0,s.scalez*s.data[int(y*ylen/s.height())][int(x*xlen/s.width())]))
-                    p.drawPoint(x,y)
+            old = (s.data[0]*s.scalez)
+            for i in range(0,xlen-1):
+                new = (s.data[i]*s.scalez)
+                p.drawLine(QtCore.QPoint(int(i*div),old+s.height()/2),QtCore.QPoint(int((i+1)*div),new+s.height()/2))
+                old = new
+        elif(s.mode == 2):
+            assert(type(s.data)==list and type(s.data[0] == list))
+            xlen = len(s.data)
+            # scale data in x direction to fit screen
+            div = s.width() / xlen
+            p.setPen(QtCore.Qt.blue)
+            print(s.data)
+            for i in range(0,xlen-1):
+                for val in s.data[i]:
+                    p.drawPoint(QtCore.QPoint(i,s.height()- val*s.scalez))
+
+
+
 
 
 if( __name__ == "__main__"):
